@@ -1,0 +1,45 @@
+library(dplyr)
+library(tidyr)
+library(lubridate)
+
+#Data Preparation
+# PROCESS TEMPERATURE DATA
+# Select just cities in USA, read in temperature.csv and filter only US cities
+city <- read.csv(file="./data/city_attributes.csv")
+city$City <- gsub(" ",".",city$City)
+city <- city[(city$Country=="United States"),]
+usa_cities <- unlist(lapply(city['City'],as.character))
+temp <- read.csv(file="./data/temperature.csv")
+temp_sub <- temp[,which(colnames(temp) %in% append(usa_cities,"datetime"))]
+temp_sub <- temp_sub %>% gather("City","Temp",usa_cities)
+
+# PROCESS WIND DATA
+# Bring wind direction and speed into temp_sub
+wdir <- read.csv(file="./data/wind_direction.csv")
+wspd <- read.csv(file="./data/wind_speed.csv")
+wdir_sub <- wdir[,which(colnames(wdir) %in% append(usa_cities,"datetime"))]
+wdir_sub <- wdir_sub %>% gather("City","Wdir",usa_cities)
+wspd_sub <- wspd[,which(colnames(wspd) %in% append(usa_cities,"datetime"))]
+wspd_sub <- wspd_sub %>% gather("City","Wspd",usa_cities)
+temp_sub <- inner_join(temp_sub,wdir_sub,by=c("datetime","City"))
+temp_sub <- inner_join(temp_sub,wspd_sub,by=c("datetime","City"))
+
+# CLEAN LAT/LON COLUMNS
+# Convert timezone based on longitude (a rough approximation, appropriate for cities in this app)
+convert_time <- function(datetime,longitude) {
+    datetime_conv <- as.character(datetime)
+    datetime_conv <- as.POSIXct(datetime_conv,format="%Y-%m-%d %H:%M:%S")
+    if (longitude <= -115) {
+        datetime_conv <- datetime_conv-hours(8)
+    } else if ((longitude > -115) & (longitude <= -100)) {
+        datetime_conv <- datetime_conv-hours(7)
+    } else if ((longitude > -100) & (longitude <= -87)) {
+        datetime_conv <- datetime_conv-hours(6)
+    } else {
+        datetime_conv <- datetime_conv-hours(5)
+    }
+    return(datetime_conv)
+}
+
+write.csv(temp_sub,"temp_sub.csv")
+#End of Data Preparation
